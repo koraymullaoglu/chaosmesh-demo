@@ -1,0 +1,252 @@
+# ===========================================
+# %80 PAKET KAYBI SENARYOLARI
+# Yüksek paket kaybı testleri
+# ===========================================
+
+---
+# Senaryo 1: %80 Paket Kaybı - Payment -> Inventory
+# Kritik servis iletişiminde yüksek kayıp
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: packet-loss-80-percent
+  namespace: payment-chaos
+  labels:
+    experiment: packet-loss
+    severity: critical
+spec:
+  action: loss
+  mode: all
+  selector:
+    namespaces:
+      - payment-chaos
+    labelSelectors:
+      app: payment-service
+  loss:
+    loss: "80" # %80 paket kaybı
+    correlation: "50" # %50 korelasyon
+  direction: to
+  target:
+    selector:
+      namespaces:
+        - payment-chaos
+      labelSelectors:
+        app: inventory-service
+    mode: all
+  duration: "5m"
+
+---
+# Senaryo 2: %95 Paket Kaybı - Neredeyse Tam Kopukluk
+# Servis kesintisi simülasyonu
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: packet-loss-95-percent
+  namespace: payment-chaos
+  labels:
+    experiment: packet-loss
+    severity: extreme
+spec:
+  action: loss
+  mode: all
+  selector:
+    namespaces:
+      - payment-chaos
+    labelSelectors:
+      app: payment-service
+  loss:
+    loss: "95" # %95 paket kaybı
+    correlation: "75" # Yüksek korelasyon - ardışık kayıplar
+  direction: both # İki yönlü
+  target:
+    selector:
+      namespaces:
+        - payment-chaos
+      labelSelectors:
+        app: notification-service
+    mode: all
+  duration: "3m"
+
+---
+# Senaryo 3: %50 Paket Kaybı + Gecikme Kombinasyonu
+# Gerçekçi kötü ağ koşulları
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: packet-loss-with-delay
+  namespace: payment-chaos
+  labels:
+    experiment: combined
+    severity: high
+spec:
+  action: loss
+  mode: all
+  selector:
+    namespaces:
+      - payment-chaos
+    labelSelectors:
+      app: payment-service
+  loss:
+    loss: "50" # %50 paket kaybı
+    correlation: "30"
+  direction: to
+  target:
+    selector:
+      namespaces:
+        - payment-chaos
+      labelSelectors:
+        app: inventory-service
+    mode: all
+  duration: "5m"
+
+---
+# Aynı hedeflere gecikme de ekle
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: delay-combined-with-loss
+  namespace: payment-chaos
+  labels:
+    experiment: combined
+    severity: high
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - payment-chaos
+    labelSelectors:
+      app: payment-service
+  delay:
+    latency: "2s"
+    jitter: "500ms"
+  direction: to
+  target:
+    selector:
+      namespaces:
+        - payment-chaos
+      labelSelectors:
+        app: inventory-service
+    mode: all
+  duration: "5m"
+
+---
+# Senaryo 4: Periyodik %80 Paket Kaybı
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: scheduled-packet-loss
+  namespace: payment-chaos
+spec:
+  schedule: "*/3 * * * *" # Her 3 dakikada bir
+  type: NetworkChaos
+  historyLimit: 5
+  concurrencyPolicy: Forbid
+  networkChaos:
+    action: loss
+    mode: all
+    selector:
+      namespaces:
+        - payment-chaos
+      labelSelectors:
+        app: payment-service
+    loss:
+      loss: "80"
+      correlation: "60"
+    direction: to
+    target:
+      selector:
+        namespaces:
+          - payment-chaos
+        labelSelectors:
+          app: inventory-service
+      mode: all
+    duration: "90s"
+
+---
+# Senaryo 5: Kademeli Paket Kaybı (Düşükten Yükseğe)
+# Workflow ile artan paket kaybı
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: gradual-packet-loss
+  namespace: payment-chaos
+spec:
+  entry: packet-loss-sequence
+  templates:
+    - name: packet-loss-sequence
+      templateType: Serial
+      deadline: "15m"
+      children:
+        - loss-20-percent
+        - loss-50-percent
+        - loss-80-percent
+
+    - name: loss-20-percent
+      templateType: NetworkChaos
+      deadline: "3m"
+      networkChaos:
+        action: loss
+        mode: all
+        selector:
+          namespaces:
+            - payment-chaos
+          labelSelectors:
+            app: payment-service
+        loss:
+          loss: "20"
+          correlation: "25"
+        direction: to
+        target:
+          selector:
+            namespaces:
+              - payment-chaos
+            labelSelectors:
+              app: inventory-service
+          mode: all
+
+    - name: loss-50-percent
+      templateType: NetworkChaos
+      deadline: "3m"
+      networkChaos:
+        action: loss
+        mode: all
+        selector:
+          namespaces:
+            - payment-chaos
+          labelSelectors:
+            app: payment-service
+        loss:
+          loss: "50"
+          correlation: "40"
+        direction: to
+        target:
+          selector:
+            namespaces:
+              - payment-chaos
+            labelSelectors:
+              app: inventory-service
+          mode: all
+
+    - name: loss-80-percent
+      templateType: NetworkChaos
+      deadline: "3m"
+      networkChaos:
+        action: loss
+        mode: all
+        selector:
+          namespaces:
+            - payment-chaos
+          labelSelectors:
+            app: payment-service
+        loss:
+          loss: "80"
+          correlation: "60"
+        direction: to
+        target:
+          selector:
+            namespaces:
+              - payment-chaos
+            labelSelectors:
+              app: inventory-service
+          mode: all
