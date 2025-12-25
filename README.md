@@ -1,125 +1,188 @@
 # Payment System - Chaos Mesh Demo
 
-Üç mikroservisten oluşan ödeme sistemi ve kaos senaryoları.
+A payment system with three microservices and chaos engineering scenarios.
 
-## 📁 Proje Yapısı
+## 🎯 Project Overview
+
+This project demonstrates chaos engineering principles using **Chaos Mesh** on a simple payment microservices architecture. Two main chaos scenarios are implemented and tested:
+
+1. **80% Packet Loss** - Network communication disruption between services
+2. **CPU/Memory Stress** - Performance testing under resource constraints
+
+## 📊 Test Results Summary
+
+| Scenario    | Impact                             | Recovery      |
+| ----------- | ---------------------------------- | ------------- |
+| Packet Loss | 100% service communication failure | ✅ <3 seconds |
+| CPU Stress  | 300-600% performance degradation   | ✅ <3 seconds |
+
+## 📁 Project Structure
 
 ```
 myproject/
 ├── app/
-│   ├── payment_service.py      # Ana ödeme servisi (port 5002)
-│   ├── inventory_service.py    # Stok yönetimi servisi (port 5003)
-│   ├── notification_service.py # Bildirim servisi (port 5004)
+│   ├── payment_service.py      # Main payment service (port 5002)
+│   ├── inventory_service.py    # Inventory management service (port 5003)
+│   ├── notification_service.py # Notification service (port 5004)
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── k8s/
 │   └── deployment.yaml         # Kubernetes deployment
 ├── chaos-experiments/
-│   ├── 02-packet-loss-80-percent.yaml # %80-95 paket kaybı
-│   └── 05-stress-chaos.yaml           # CPU/Memory stresi
-└── README.md
+│   ├── 02-packet-loss-80-percent.yaml # 80-95% packet loss scenarios
+│   └── 05-stress-chaos.yaml           # CPU/Memory stress scenarios
+├── test-chaos.sh               # Automated test script
+├── README.md
+└── Dokuman.md                  # Detailed documentation (Turkish)
 ```
 
-### 1. Docker Image Oluştur
+## 🏗️ Architecture
+
+```
+┌─────────────────┐
+│ Payment Service │  (Port: 5002, Replicas: 3)
+│   (Main API)    │
+└────────┬────────┘
+         │
+         ├──────────> ┌───────────────────┐
+         │            │ Inventory Service │  (Port: 5003, Replicas: 2)
+         │            └───────────────────┘
+         │
+         └──────────> ┌──────────────────────┐
+                      │ Notification Service │  (Port: 5004, Replicas: 2)
+                      └──────────────────────┘
+```
+
+## 🚀 Quick Start
+
+### 1. Build Docker Image
 
 ```bash
-cd myproject/app
+cd app
 docker build -t payment-system:latest .
 ```
 
-### 2. Kubernetes'e Deploy Et
+### 2. Deploy to Kubernetes
 
 ```bash
-# Namespace ve servisleri oluştur
+# Create namespace and deploy services
 kubectl apply -f k8s/deployment.yaml
 
-# Pod'ların hazır olduğunu kontrol et
+# Check pod status
 kubectl get pods -n payment-chaos -w
 ```
 
-### 3. Servislere Erişim
+### 3. Port Forwarding
 
 ```bash
-# Port forwarding
+# Forward service ports to localhost
 kubectl port-forward -n payment-chaos svc/payment-service 5002:5002 &
 kubectl port-forward -n payment-chaos svc/inventory-service 5003:5003 &
 kubectl port-forward -n payment-chaos svc/notification-service 5004:5004 &
 ```
 
-## 🔧 Servisler
+## 🔧 Services
 
 ### Payment Service (Port 5002)
 
-- `GET /health` - Sağlık kontrolü
-- `POST /payment/process` - Ödeme işlemi
-- `GET /payment/status/<id>` - Ödeme durumu
-- `POST /payment/refund` - İade işlemi
-- `POST /payment/chain` - Zincirleme işlem
+- `GET /health` - Health check
+- `POST /payment/process` - Process payment
+- `GET /payment/status/<id>` - Get payment status
+- `POST /payment/refund` - Process refund
+- `POST /payment/chain` - Chain request (calls Inventory + Notification)
 
 ### Inventory Service (Port 5003)
 
-- `GET /health` - Sağlık kontrolü
-- `GET /check/<product_id>` - Stok kontrolü
-- `POST /reserve` - Stok rezervasyonu
-- `GET /list` - Ürün listesi
+- `GET /health` - Health check
+- `GET /check/<product_id>` - Check stock availability
+- `POST /reserve` - Reserve stock
+- `GET /list` - List products
 
 ### Notification Service (Port 5004)
 
-- `GET /health` - Sağlık kontrolü
-- `POST /send` - Bildirim gönder
-- `GET /history` - Bildirim geçmişi
+- `GET /health` - Health check
+- `POST /send` - Send notification
+- `GET /history` - Get notification history
 
-## 🌪️ Kaos Senaryoları
+## 🌪️ Chaos Scenarios
 
-### Senaryo 1: %80 Paket Kaybı
+### Scenario 1: 80% Packet Loss
 
 ```bash
 kubectl apply -f chaos-experiments/02-packet-loss-80-percent.yaml
 ```
 
-**İçerik:**
+**Includes:**
 
-- `packet-loss-80-percent`: %80 paket kaybı
-- `packet-loss-95-percent`: %95 paket kaybı (neredeyse tam kopukluk)
-- `packet-loss-with-delay`: %50 kayıp + gecikme kombinasyonu
-- `gradual-packet-loss`: Kademeli paket kaybı workflow'u
+- `packet-loss-80-percent`: 80% packet loss between services
+- `packet-loss-95-percent`: 95% packet loss (near-complete disruption)
+- `packet-loss-with-delay`: 50% loss + network delay combination
+- `gradual-packet-loss`: Gradual packet loss workflow
 
-### Senaryo 2: Kaynak Stresi
+**Expected Impact:** Complete failure of inter-service communication
+
+### Scenario 2: Resource Stress
 
 ```bash
 kubectl apply -f chaos-experiments/05-stress-chaos.yaml
 ```
 
-**İçerik:**
+**Includes:**
 
-- `cpu-stress-payment`: %80 CPU stresi
-- `cpu-stress-100-percent`: %100 CPU
-- `memory-stress-inventory`: 100MB bellek stresi
-- `gradual-stress-increase`: Kademeli stres artışı
+- `cpu-stress-payment`: 80% CPU stress on payment service
+- `cpu-stress-100-percent`: 100% CPU stress
+- `memory-stress-inventory`: 100MB memory stress on inventory
+- `gradual-stress-increase`: Gradual stress increase workflow
 
-## 📊 Test Komutları
+**Expected Impact:** 3-6x performance degradation, increased latency
 
-### Basit Test
+## 📊 Testing
+
+### Automated Test Script
+
+```bash
+# Make script executable
+chmod +x test-chaos.sh
+
+# Health check
+./test-chaos.sh health
+
+# Basic functionality test
+./test-chaos.sh basic
+
+# Apply chaos scenarios
+./test-chaos.sh apply loss      # Apply packet loss
+./test-chaos.sh apply stress    # Apply CPU/memory stress
+
+# Run tests
+./test-chaos.sh loss            # Test packet loss impact
+./test-chaos.sh stress          # Test stress impact
+
+# Cleanup chaos experiments
+./test-chaos.sh cleanup
+```
+
+### Manual Testing
 
 ```bash
 # Health check
 curl http://localhost:5002/health
 
-# Ödeme işlemi
+# Payment processing
 curl -X POST http://localhost:5002/payment/process \
   -H "Content-Type: application/json" \
-  -d '{"amount": 100, "currency": "TRY", "product_id": "1"}'
+  -d '{"amount": 100, "currency": "USD", "product_id": "1"}'
 
-# Zincirleme işlem (gecikme testi için ideal)
+# Chain request (best for latency testing)
 curl -X POST http://localhost:5002/payment/chain \
   -H "Content-Type: application/json" \
   -d '{"product_id": "1"}'
 ```
 
-### Stres Testi
+### Stress Test
 
 ```bash
-# 100 paralel istek
+# 100 parallel requests
 for i in {1..100}; do
   curl -s http://localhost:5002/payment/chain \
     -X POST -H "Content-Type: application/json" \
@@ -128,33 +191,70 @@ done
 wait
 ```
 
-## 🧹 Temizlik
+## 🧹 Cleanup
+
+### Stop All Chaos Experiments
 
 ```bash
-# Tüm kaos deneylerini durdur
 kubectl delete networkchaos --all -n payment-chaos
 kubectl delete podchaos --all -n payment-chaos
 kubectl delete stresschaos --all -n payment-chaos
 kubectl delete workflow --all -n payment-chaos
 kubectl delete schedule --all -n payment-chaos
+```
 
-# Namespace'i sil
+### Delete Namespace
+
+```bash
 kubectl delete namespace payment-chaos
 ```
 
-## 📈 İzleme
+## 📈 Monitoring
 
-Kaos Mesh Dashboard'u kullanarak deneyleri izleyin:
+View experiments in Chaos Mesh Dashboard:
 
 ```bash
 kubectl port-forward -n chaos-mesh svc/chaos-dashboard 2333:2333
-# Tarayıcıda: http://localhost:2333
+# Open browser: http://localhost:2333
 ```
 
-## ⚠️ Önemli Notlar
+## 📚 Documentation
 
-1. **Agresif senaryolar**: %80+ paket kaybı senaryosu servisleri ciddi şekilde etkiler
-2. **Timeout ayarları**: Servisler 10-30 sn timeout ile yapılandırılmış
-3. **Replica sayısı**: Payment: 3, Inventory: 2, Notification: 2
-4. **Kaynak limitleri**: Her pod 128Mi RAM, 200m CPU ile sınırlı
-5. **Test odağı**: Sadece paket kaybı ve CPU/Memory stresi testleri aktif
+For detailed test process, results, and analysis, see: `Dokuman.md` (40+ pages, Turkish)
+
+## 🛠️ Technologies
+
+- **Python 3.11** (Flask framework)
+- **Kubernetes** (Minikube)
+- **Chaos Mesh** (v2.6+)
+- **Docker**
+
+## ⚙️ Resource Configuration
+
+| Service      | Port | Replicas | CPU Limit | Memory Limit |
+| ------------ | ---- | -------- | --------- | ------------ |
+| Payment      | 5002 | 3        | 200m      | 128Mi        |
+| Inventory    | 5003 | 2        | 200m      | 128Mi        |
+| Notification | 5004 | 2        | 200m      | 128Mi        |
+
+## ⚠️ Important Notes
+
+1. **Aggressive scenarios**: 80%+ packet loss severely affects services
+2. **Timeout settings**: Services configured with 10-30s timeouts
+3. **Replica count**: Payment: 3, Inventory: 2, Notification: 2
+4. **Resource limits**: Each pod limited to 128Mi RAM, 200m CPU
+5. **Test focus**: Only packet loss and CPU/Memory stress tests are active
+
+## 📄 License
+
+MIT License - Educational project
+
+## 🤝 Contributing
+
+This is an educational project. Feel free to fork and experiment with different chaos scenarios!
+
+## 🔗 References
+
+- [Chaos Mesh Documentation](https://chaos-mesh.org/docs/)
+- [NetworkChaos API](https://chaos-mesh.org/docs/simulate-network-chaos-on-kubernetes/)
+- [StressChaos API](https://chaos-mesh.org/docs/simulate-heavy-stress-on-kubernetes/)
